@@ -1,4 +1,4 @@
-# fuskyom — ("fuck streaming keep your own music") 
+# FUSKYOM — ("fuck streaming keep your own music") 
 ## cmus-like terminal music player with cover art support 
 
 [![CI](https://github.com/Nesthings/fuskyom/actions/workflows/ci.yml/badge.svg)](https://github.com/Nesthings/fuskyom/actions/workflows/ci.yml)
@@ -8,6 +8,27 @@
 A terminal music player inspired by [cmus](https://cmus.github.io/), written
 in Rust, that uses [chafa](https://hpjansson.org/chafa/) to draw the album
 cover directly in the terminal with colored Unicode/ANSI blocks.
+
+## Visualize album covers embedded in your music
+
+  <img width="1366" height="768" alt="Screenshot_2026-07-08_09-56-31" src="https://github.com/user-attachments/assets/35d0e045-799e-4ac3-8bfa-c1a902100787" />
+  <img width="1365" height="692" alt="Screenshot_2026-07-08_09-53-17" src="https://github.com/user-attachments/assets/a58bfec0-a7db-4782-a9f2-a2af8a1468ed" />
+  <img width="1365" height="692" alt="Screenshot_2026-07-08_09-54-56" src="https://github.com/user-attachments/assets/0a9b5a41-3067-4db5-9fb8-d4689114fe29" />
+  <img width="1365" height="692" alt="Screenshot_2026-07-08_09-55-18" src="https://github.com/user-attachments/assets/344c4b99-516d-45f3-b092-2262f7de3b4f" />
+
+
+## Explore your library
+
+  <img width="1270" height="767" alt="Screenshot_2026-07-08_13-04-48" src="https://github.com/user-attachments/assets/c0bc342b-1f68-45a0-aea0-a895cd40df18" />
+  <img width="956" height="530" alt="Screenshot_2026-07-08_09-59-17" src="https://github.com/user-attachments/assets/a44986b5-f346-43e1-8743-1da3c716539b" />
+
+  
+## Type to search feature
+
+<img width="937" height="519" alt="image" src="https://github.com/user-attachments/assets/cbe284b1-ed8f-47f3-a405-ef47d1d203ca" />
+
+  
+
 
 ## Architecture
 
