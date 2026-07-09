@@ -2,8 +2,9 @@ mod app;
 mod art;
 mod library;
 mod player;
-mod visualizer;
 mod ui;
+mod visualizer;
+
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;

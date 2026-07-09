@@ -1,9 +1,9 @@
-use std::sync::mpsc::Receiver;
+use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::widgets::canvas::{Canvas, Line as CanvasLine};
 use ratatui::widgets::{Block, Borders};
-use ratatui::layout::Rect;
 use ratatui::Frame;
+use std::sync::mpsc::Receiver;
 
 const BUF_SIZE: usize = 2048;
 
@@ -66,11 +66,7 @@ impl OscillatorState {
         };
 
         let canvas = Canvas::default()
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Visualizer "),
-            )
+            .block(Block::default().borders(Borders::ALL).title(" Visualizer "))
             .x_bounds([0.0, x_max])
             .y_bounds([-1.05, 1.05])
             .paint(move |ctx| {

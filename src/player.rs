@@ -35,7 +35,12 @@ struct SamplerSource<I> {
 
 impl<I: Source<Item = i16>> SamplerSource<I> {
     fn new(inner: I, tx: Sender<Vec<f32>>, chunk: usize) -> Self {
-        Self { inner, buf: Vec::with_capacity(chunk), chunk, tx }
+        Self {
+            inner,
+            buf: Vec::with_capacity(chunk),
+            chunk,
+            tx,
+        }
     }
 }
 
@@ -53,10 +58,18 @@ impl<I: Source<Item = i16>> Iterator for SamplerSource<I> {
 }
 
 impl<I: Source<Item = i16>> Source for SamplerSource<I> {
-    fn current_frame_len(&self) -> Option<usize> { self.inner.current_frame_len() }
-    fn channels(&self) -> u16 { self.inner.channels() }
-    fn sample_rate(&self) -> u32 { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_frame_len(&self) -> Option<usize> {
+        self.inner.current_frame_len()
+    }
+    fn channels(&self) -> u16 {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> u32 {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
 }
 
 fn read_duration(path: &Path) -> Option<Duration> {
@@ -74,7 +87,8 @@ pub fn spawn(event_tx: Sender<PlayerEvent>, sample_tx: Sender<Vec<f32>>) -> Send
             match OutputStream::try_default() {
                 Ok(s) => s,
                 Err(e) => {
-                    let _ = event_tx.send(PlayerEvent::Error(format!("cannot open audio device: {e}")));
+                    let _ =
+                        event_tx.send(PlayerEvent::Error(format!("cannot open audio device: {e}")));
                     return;
                 }
             };
@@ -96,7 +110,8 @@ pub fn spawn(event_tx: Sender<PlayerEvent>, sample_tx: Sender<Vec<f32>>) -> Send
                     let file = match std::fs::File::open(&path) {
                         Ok(f) => f,
                         Err(e) => {
-                            let _ = event_tx.send(PlayerEvent::Error(format!("couldn't open file: {e}")));
+                            let _ = event_tx
+                                .send(PlayerEvent::Error(format!("couldn't open file: {e}")));
                             continue;
                         }
                     };
@@ -111,7 +126,8 @@ pub fn spawn(event_tx: Sender<PlayerEvent>, sample_tx: Sender<Vec<f32>>) -> Send
                             let _ = event_tx.send(PlayerEvent::Started { path, duration });
                         }
                         Err(e) => {
-                            let _ = event_tx.send(PlayerEvent::Error(format!("cannot decode: {e}")));
+                            let _ =
+                                event_tx.send(PlayerEvent::Error(format!("cannot decode: {e}")));
                         }
                     }
                 }
