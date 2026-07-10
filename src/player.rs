@@ -4,16 +4,12 @@ use std::time::Duration;
 
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 
-/// Commands the UI thread sends to the audio thread. The audio thread never
-/// touches the terminal and the UI thread never touches the audio device;
-/// this channel is the only bridge between them, same idea as cmus's
-/// player <-> ui pipe.
+/// Commands the UI thread sends to the audio thread.
 pub enum PlayerCommand {
     Play(PathBuf),
     TogglePause,
     Stop,
     SetVolume(f32),
-    /// Relative seek in seconds, can be negative.
     SeekBy(f32),
     Shutdown,
 }
@@ -30,30 +26,22 @@ pub enum PlayerEvent {
     Error(String),
 }
 
-/// Reads audio properties (mainly duration) via lofty without fully decoding
-/// the file. Best-effort: returns None on any failure.
 fn read_duration(path: &Path) -> Option<Duration> {
     use lofty::file::AudioFile;
     let tagged = lofty::probe::Probe::open(path).ok()?.read().ok()?;
     Some(tagged.properties().duration())
 }
 
-/// Spawns the dedicated audio thread and returns the command sender. Events
-/// are delivered on `event_tx`. The thread owns the actual output device and
-/// a single `Sink`, tearing it down cleanly on `Shutdown`.
 pub fn spawn(event_tx: Sender<PlayerEvent>) -> Sender<PlayerCommand> {
     let (cmd_tx, cmd_rx): (Sender<PlayerCommand>, Receiver<PlayerCommand>) =
         std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
-        // OutputStream must stay alive for the whole thread lifetime, or the
-        // audio device gets torn down.
         let (_stream, stream_handle): (OutputStream, OutputStreamHandle) =
             match OutputStream::try_default() {
                 Ok(s) => s,
                 Err(e) => {
-                    let _ =
-                        event_tx.send(PlayerEvent::Error(format!("cannot open audio device: {e}")));
+                    let _ = event_tx.send(PlayerEvent::Error(format!("cannot open audio device: {e}")));
                     return;
                 }
             };
@@ -75,11 +63,13 @@ pub fn spawn(event_tx: Sender<PlayerEvent>) -> Sender<PlayerCommand> {
                     let file = match std::fs::File::open(&path) {
                         Ok(f) => f,
                         Err(e) => {
-                            let _ = event_tx
-                                .send(PlayerEvent::Error(format!("couldn't open file: {e}")));
+                            let _ = event_tx.send(PlayerEvent::Error(format!("couldn't open file: {e}")));
+                            // Si el archivo no existe o no se puede abrir, saltamos al siguiente
+                            let _ = event_tx.send(PlayerEvent::Finished);
                             continue;
                         }
                     };
+                    
                     match Decoder::new(std::io::BufReader::new(file)) {
                         Ok(source) => {
                             sink.stop();
@@ -91,8 +81,10 @@ pub fn spawn(event_tx: Sender<PlayerEvent>) -> Sender<PlayerCommand> {
                             let _ = event_tx.send(PlayerEvent::Started { path, duration });
                         }
                         Err(e) => {
-                            let _ =
-                                event_tx.send(PlayerEvent::Error(format!("cannot decode: {e}")));
+                            // MANEJO DE ERRORES: Si la canción está corrupta, reportamos 
+                            // y enviamos Finished para que el randomizador dispare la siguiente
+                            let _ = event_tx.send(PlayerEvent::Error(format!("Skip corrupt track: {e}")));
+                            let _ = event_tx.send(PlayerEvent::Finished);
                         }
                     }
                 }
@@ -128,7 +120,6 @@ pub fn spawn(event_tx: Sender<PlayerEvent>) -> Sender<PlayerCommand> {
                 }
                 Ok(PlayerCommand::Shutdown) => break,
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    // Periodic tick: report position, detect end-of-track.
                     if has_track {
                         if !sink.is_paused() {
                             let _ = event_tx.send(PlayerEvent::Position(sink.get_pos()));

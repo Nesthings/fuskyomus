@@ -8,7 +8,9 @@ pub struct Entry {
     pub is_dir: bool,
 }
 
-const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "ogg", "oga"];
+const AUDIO_EXTENSIONS: &[&str] = &[
+    "mp3", "flac", "ogg", "oga", "wav", "m4a", "aac", "aiff", "aif",
+];
 
 /// Returns true if the given path has an extension we know how to play.
 pub fn is_audio_file(path: &Path) -> bool {
@@ -71,4 +73,22 @@ pub fn audio_files_in(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         .filter(|e| !e.is_dir)
         .map(|e| e.path)
         .collect())
+}
+
+/// Escanea recursivamente todas las carpetas configuradas buscando todos
+/// los archivos de audio. Usado para el Random (Global).
+pub fn all_audio_files_global(roots: &[PathBuf]) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for root in roots {
+        for entry in walkdir::WalkDir::new(root)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if !path.is_dir() && is_audio_file(path) {
+                files.push(path.to_path_buf());
+            }
+        }
+    }
+    files
 }
