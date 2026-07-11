@@ -4,12 +4,12 @@ use std::time::Duration;
 
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 
+/// Commands the UI thread sends to the audio thread.
 pub enum PlayerCommand {
     Play(PathBuf),
     TogglePause,
     Stop,
     SetVolume(f32),
-    /// Relative seek in seconds, can be negative.
     SeekBy(f32),
     Shutdown,
 }
@@ -112,9 +112,12 @@ pub fn spawn(event_tx: Sender<PlayerEvent>, sample_tx: Sender<Vec<f32>>) -> Send
                         Err(e) => {
                             let _ = event_tx
                                 .send(PlayerEvent::Error(format!("couldn't open file: {e}")));
+                            // Si el archivo no existe o no se puede abrir, saltamos al siguiente
+                            let _ = event_tx.send(PlayerEvent::Finished);
                             continue;
                         }
                     };
+
                     match Decoder::new(std::io::BufReader::new(file)) {
                         Ok(source) => {
                             sink.stop();
@@ -126,8 +129,11 @@ pub fn spawn(event_tx: Sender<PlayerEvent>, sample_tx: Sender<Vec<f32>>) -> Send
                             let _ = event_tx.send(PlayerEvent::Started { path, duration });
                         }
                         Err(e) => {
-                            let _ =
-                                event_tx.send(PlayerEvent::Error(format!("cannot decode: {e}")));
+                            // MANEJO DE ERRORES: Si la canción está corrupta, reportamos
+                            // y enviamos Finished para que el randomizador dispare la siguiente
+                            let _ = event_tx
+                                .send(PlayerEvent::Error(format!("Skip corrupt track: {e}")));
+                            let _ = event_tx.send(PlayerEvent::Finished);
                         }
                     }
                 }
