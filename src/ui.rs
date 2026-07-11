@@ -231,7 +231,15 @@ fn draw_now_playing(frame: &mut Frame, area: Rect, app: &mut App, osc: &Oscillat
     let inner = art_block.inner(cols[0]);
     frame.render_widget(art_block, cols[0]);
 
-    let vis_height = if app.show_visualizer { 1 } else { 0 };
+    let vis_height = if app.show_visualizer {
+        if app.vis_style == 2 {
+            8
+        } else {
+            1
+        }
+    } else {
+        0
+    };
     let art_constraints = if app.show_visualizer {
         vec![
             Constraint::Min(5),
@@ -270,89 +278,64 @@ fn draw_now_playing(frame: &mut Frame, area: Rect, app: &mut App, osc: &Oscillat
             .border_type(BorderType::Double);
         frame.render_widget(sep, art_layout[1]);
 
-        let mut data = Vec::new();
-        let num_bars = (art_layout[2].width / 3).max(1) as usize;
-        let num_spark = art_layout[2].width.max(1) as usize;
+        if app.vis_style == 0 || app.vis_style == 1 {
+            let mut data = Vec::new();
+            let num_bars = (art_layout[2].width / 3).max(1) as usize;
+            let num_spark = art_layout[2].width.max(1) as usize;
+            
+            let elements = if app.vis_style == 0 { num_bars } else { num_spark };
+            let is_playing = app.play_state == PlayState::Playing;
 
-        let elements = if app.vis_style == 0 {
-            num_bars
-        } else {
-            num_spark
-        };
-        let is_playing = app.play_state == PlayState::Playing;
-
-        for i in 0..elements {
-            let mut val = 0;
-            if is_playing {
-                val = ((app.position.as_millis() / 40) as u64 + (i as u64 * 11)) % 100;
-                val = ((val as f32 / 100.0).powf(1.5) * 100.0) as u64;
-            } else if app.current_track.is_some() {
-                val = 10;
+            for i in 0..elements {
+                let mut val = 0;
+                if is_playing {
+                    val = ((app.position.as_millis() / 40) as u64 + (i as u64 * 11)) % 100;
+                    val = ((val as f32 / 100.0).powf(1.5) * 100.0) as u64;
+                } else if app.current_track.is_some() {
+                    val = 10;
+                }
+                data.push(val);
             }
-            data.push(val);
-        }
 
-        if app.vis_style == 0 {
-            let bars: Vec<Bar> = data
-                .into_iter()
-                .map(|v| Bar::default().value(v).text_value(String::new()))
-                .collect();
-            let bg = BarGroup::default().bars(&bars);
-            let barchart = BarChart::default()
-                .data(bg)
-                .bar_width(2)
-                .bar_gap(1)
-                .max(100)
-                .bar_style(Style::default().fg(theme.primary));
-            frame.render_widget(barchart, art_layout[2]);
+            if app.vis_style == 0 {
+                let bars: Vec<Bar> = data
+                    .into_iter()
+                    .map(|v| Bar::default().value(v).text_value(String::new()))
+                    .collect();
+                let bg = BarGroup::default().bars(&bars);
+                let barchart = BarChart::default()
+                    .data(bg)
+                    .bar_width(2)
+                    .bar_gap(1)
+                    .max(100)
+                    .bar_style(Style::default().fg(theme.primary));
+                frame.render_widget(barchart, art_layout[2]);
+            } else {
+                let sparkline = Sparkline::default()
+                    .data(&data)
+                    .max(100)
+                    .style(Style::default().fg(theme.primary));
+                frame.render_widget(sparkline, art_layout[2]);
+            }
         } else {
-            let sparkline = Sparkline::default()
-                .data(&data)
-                .max(100)
-                .style(Style::default().fg(theme.primary));
-            frame.render_widget(sparkline, art_layout[2]);
+            osc.draw(frame, art_layout[2]);
         }
     }
 
-    // Right column: top row = [Track | Visualizer] side by side, bottom = Queue.
-    let top_h = 8u16 + 2; // vizualizer height + borders; track info fits inside too
+    let top_h = 8u16; // track info fits inside
     let right = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(top_h), // top row (track + visualizer)
+            Constraint::Length(top_h), // top row (track)
             Constraint::Min(3),        // queue
         ])
         .split(cols[1]);
 
-    // Top row: Track info on the left half, Visualizer on the right half.
-    //track 60% of the screen
-    //visualizer 40% of the screen
-    // ---------------------------------------------
-    // |                      ||                   |
-    // |        Track         ||    Visualizer     |
-    // |                      ||                   |
-    // ---------------------------------------------
-    let show_viz = right[0].width >= 70;
-    let top_constraints = if show_viz {
-        vec![Constraint::Percentage(60), Constraint::Percentage(40)]
-    } else {
-        vec![Constraint::Percentage(100)]
-    };
-
-    let top_row = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(top_constraints)
-        .split(right[0]);
-
     let info_lines = track_info_lines(app);
     frame.render_widget(
         Paragraph::new(info_lines).block(Block::default().borders(Borders::ALL).title(" Track ")),
-        top_row[0],
+        right[0],
     );
-
-    if show_viz {
-        osc.draw(frame, top_row[1]);
-    }
 
     let queue_items: Vec<ListItem> = app
         .queue
@@ -540,13 +523,24 @@ fn draw_settings(frame: &mut Frame, area: Rect, app: &App) {
     } else {
         "[ ] Show Wave Visualizer"
     };
-    let style_text = if app.vis_style == 0 {
+    let creator_style = if app.vis_style == 1 {
+        " [*] Style: Sparkline"
+    } else if app.vis_style == 0 {
         " [*] Style: Bar Chart"
     } else {
-        " [*] Style: Sparkline"
+        " [ ] Style: Bar Chart"
+    };
+    let style_osc = if app.vis_style == 2 {
+        " [*] Style: Oscillator"
+    } else {
+        " [ ] Style: Oscillator"
     };
 
-    let opt_items = vec![ListItem::new(vis_text), ListItem::new(style_text)];
+    let opt_items = vec![
+        ListItem::new(vis_text),
+        ListItem::new(creator_style),
+        ListItem::new(style_osc),
+    ];
 
     let opt_border = if app.settings_focus == SettingsFocus::Options {
         theme.primary

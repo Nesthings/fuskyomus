@@ -578,7 +578,7 @@ impl App {
                     self.theme_selected = (self.theme_selected + 1).min(4);
                 }
                 SettingsFocus::Options => {
-                    self.options_selected = (self.options_selected + 1).min(1);
+                    self.options_selected = (self.options_selected + 1).min(2);
                 }
             },
             KeyCode::Up | KeyCode::Char('k') => match self.settings_focus {
@@ -604,24 +604,20 @@ impl App {
                         self.show_visualizer = !self.show_visualizer;
                         let _ = config::save_visualizer(self.show_visualizer);
                         self.status = format!(
-                            "Visualizador {}",
-                            if self.show_visualizer {
-                                "activado"
-                            } else {
-                                "desactivado"
-                            }
+                            "Visualizer {}",
+                            if self.show_visualizer { "on" } else { "off" }
                         );
                     } else if self.options_selected == 1 {
                         self.vis_style = if self.vis_style == 0 { 1 } else { 0 };
                         let _ = config::save_vis_style(self.vis_style);
                         self.status = format!(
-                            "Estilo visualizador: {}",
-                            if self.vis_style == 0 {
-                                "Barras"
-                            } else {
-                                "Sparkline"
-                            }
+                            "Visualizer style: {}",
+                            if self.vis_style == 0 { "Bar Chart" } else { "Sparkline" }
                         );
+                    } else if self.options_selected == 2 {
+                        self.vis_style = 2;
+                        let _ = config::save_vis_style(self.vis_style);
+                        self.status = "Visualizer style: Oscillator".to_string();
                     }
                 }
             },
