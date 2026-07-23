@@ -4,6 +4,7 @@ mod config;
 mod library;
 mod player;
 mod ui;
+mod visualizer;
 
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -19,11 +20,13 @@ fn main() -> anyhow::Result<()> {
     silence_stderr_to_log();
 
     let (event_tx, event_rx) = mpsc::channel();
-    let cmd_tx = player::spawn(event_tx);
+    let (sample_tx, sample_rx) = mpsc::channel();
+    let cmd_tx = player::spawn(event_tx, sample_tx);
     let mut app = App::new(library_roots, cmd_tx.clone());
+    let mut osc = visualizer::OscillatorState::new(sample_rx);
 
     let mut terminal = ratatui::init();
-    let result = run_app(&mut terminal, &mut app, &event_rx);
+    let result = run_app(&mut terminal, &mut app, &event_rx, &mut osc);
     ratatui::restore();
 
     let _ = cmd_tx.send(player::PlayerCommand::Shutdown);
@@ -115,9 +118,13 @@ fn run_app(
     terminal: &mut ratatui::DefaultTerminal,
     app: &mut App,
     event_rx: &mpsc::Receiver<player::PlayerEvent>,
+    osc: &mut visualizer::OscillatorState,
 ) -> anyhow::Result<()> {
     loop {
-        terminal.draw(|frame| ui::draw(frame, app))?;
+        // Pull new audio samples.
+        osc.poll();
+
+        terminal.draw(|frame| ui::draw(frame, app, osc))?;
 
         // Drain any pending events from the audio thread first so the UI
         // reflects the latest playback state before we redraw.
@@ -131,6 +138,9 @@ fn run_app(
                     app.handle_key(key);
                 }
             }
+        } else {
+            // No input this tick
+            osc.tick();
         }
 
         if app.should_quit {

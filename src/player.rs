@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 
 /// Commands the UI thread sends to the audio thread.
 pub enum PlayerCommand {
@@ -14,7 +14,6 @@ pub enum PlayerCommand {
     Shutdown,
 }
 
-/// Events the audio thread reports back to the UI thread.
 pub enum PlayerEvent {
     Started {
         path: PathBuf,
@@ -26,13 +25,60 @@ pub enum PlayerEvent {
     Error(String),
 }
 
+/// Wraps a rodio Source and forwards chunks of samples to the spectrum analyzer.
+struct SamplerSource<I> {
+    inner: I,
+    buf: Vec<f32>,
+    chunk: usize,
+    tx: Sender<Vec<f32>>,
+}
+
+impl<I: Source<Item = i16>> SamplerSource<I> {
+    fn new(inner: I, tx: Sender<Vec<f32>>, chunk: usize) -> Self {
+        Self {
+            inner,
+            buf: Vec::with_capacity(chunk),
+            chunk,
+            tx,
+        }
+    }
+}
+
+impl<I: Source<Item = i16>> Iterator for SamplerSource<I> {
+    type Item = i16;
+    fn next(&mut self) -> Option<i16> {
+        let s = self.inner.next()?;
+        self.buf.push(s as f32 / 32768.0);
+        if self.buf.len() >= self.chunk {
+            let chunk = std::mem::replace(&mut self.buf, Vec::with_capacity(self.chunk));
+            let _ = self.tx.send(chunk);
+        }
+        Some(s)
+    }
+}
+
+impl<I: Source<Item = i16>> Source for SamplerSource<I> {
+    fn current_frame_len(&self) -> Option<usize> {
+        self.inner.current_frame_len()
+    }
+    fn channels(&self) -> u16 {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> u32 {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
+}
+
 fn read_duration(path: &Path) -> Option<Duration> {
     use lofty::file::AudioFile;
     let tagged = lofty::probe::Probe::open(path).ok()?.read().ok()?;
     Some(tagged.properties().duration())
 }
 
-pub fn spawn(event_tx: Sender<PlayerEvent>) -> Sender<PlayerCommand> {
+pub fn spawn(event_tx: Sender<PlayerEvent>, sample_tx: Sender<Vec<f32>>) -> Sender<PlayerCommand> {
     let (cmd_tx, cmd_rx): (Sender<PlayerCommand>, Receiver<PlayerCommand>) =
         std::sync::mpsc::channel();
 
@@ -75,7 +121,7 @@ pub fn spawn(event_tx: Sender<PlayerEvent>) -> Sender<PlayerCommand> {
                     match Decoder::new(std::io::BufReader::new(file)) {
                         Ok(source) => {
                             sink.stop();
-                            sink.append(source);
+                            sink.append(SamplerSource::new(source, sample_tx.clone(), 1024));
                             sink.play();
                             let duration = read_duration(&path);
                             has_track = true;
