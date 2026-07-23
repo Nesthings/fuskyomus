@@ -42,7 +42,7 @@ cover directly in the terminal with colored Unicode/ANSI blocks.
 - **The browser remembers where you were** — going up/down between
   directories, or hopping over to Now Playing/Settings and back, no longer
   resets you to the top of the list.
-- **Wider format support** — M4A, WAV, AIFF/AIF joined MP3/FLAC/OGG.
+- **Wider format support** — WAV, AIFF/AIF joined MP3/FLAC/OGG.
 - **Wave visualizer** — toggle on/off from Settings, switch between Bar Chart
   and Sparkline styles, and it automatically matches whichever color theme is
   active.
